@@ -5,7 +5,7 @@ var assert = require("../test_helpers/assert");
 var testUtils = require("../test_helpers/test_utils");
 
 exports['Pool'] = nodeunit.testCase({
-  setUp: function(callback) {
+  setUp: function (callback) {
     var self = this;
     self.poolingLogs = [];
 
@@ -21,40 +21,46 @@ exports['Pool'] = nodeunit.testCase({
         max: 2,
         min: 1,
         idleTimeoutMillis: 1000,
-        log: function(msg, level) {
+        log: function (msg, level) {
           self.poolingLogs.push(msg);
         }
       }
     };
-    testUtils.connect(persist, self.connectOpts, function(err, connection) {
-      self.pool = connection.getPool();
+
+    testUtils.connect(persist, self.connectOpts, function (err, connection, schema) {
       connection.close();
+      self.schema = schema;
       callback();
     });
   },
 
-  "max connections": function(test) {
+  tearDown: function (callback) {
+    this.schema.shutdown();
+    callback();
+  },
+
+  "max connections": function (test) {
     var self = this;
 
     // 1st connection
-    persist.connect(self.connectOpts, function(err, conn1) {
+    persist.connect(self.connectOpts, function (err, conn1) {
       if (err) {
         console.error(err);
         return test.done(err);
       }
 
       // 2nd connection
-      return persist.connect(self.connectOpts, function(err, conn2) {
+      return persist.connect(self.connectOpts, function (err, conn2) {
         if (err) {
           console.error(err);
           return test.done(err);
         }
 
         // 3rd connection
-        setTimeout(function() {
+        setTimeout(function () {
           conn1.close();
         }, 100);
-        return persist.connect(self.connectOpts, function(err, conn3) {
+        return persist.connect(self.connectOpts, function (err, conn3) {
           if (err) {
             console.error(err);
             return test.done(err);
@@ -67,6 +73,42 @@ exports['Pool'] = nodeunit.testCase({
         });
       });
     });
+  },
+
+  "max connections using schema": function (test) {
+    var self = this;
+
+    // 1st connection
+    self.schema.connect(function (err, conn1) {
+      if (err) {
+        console.error(err);
+        return test.done(err);
+      }
+
+      // 2nd connection
+      return self.schema.connect(function (err, conn2) {
+        if (err) {
+          console.error(err);
+          return test.done(err);
+        }
+
+        // 3rd connection
+        setTimeout(function () {
+          conn1.close();
+        }, 100);
+        return self.schema.connect(function (err, conn3) {
+          if (err) {
+            console.error(err);
+            return test.done(err);
+          }
+
+          conn2.close();
+          conn3.close();
+          test.done();
+        });
+      });
+    });
+
 
 //    this.Person.using(this.connection).all(function(err, people) {
 //      if (err) {
@@ -82,4 +124,5 @@ exports['Pool'] = nodeunit.testCase({
 //      test.done();
 //    });
   }
-});
+})
+;

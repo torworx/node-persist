@@ -34,21 +34,21 @@ if (driver == 'oracle') {
   textDateType = 'VARCHAR2(255)';
 }
 exports.personCreateStmt = personCreateStmt = "CREATE TABLE " + ifNotExistsSql + " People (id INTEGER PRIMARY KEY "
-                                                + (driver == 'mysql' ? 'auto_increment' : '')
-                                                + ", name " + textDateType + ", age INTEGER, txt " + textDateType + ", last_updated " + textDateType + ", created_date " + textDateType + ") "
+  + (driver == 'mysql' ? 'auto_increment' : '')
+  + ", name " + textDateType + ", age INTEGER, txt " + textDateType + ", last_updated " + textDateType + ", created_date " + textDateType + ") "
   + (driver == 'mysql' ? 'engine=innodb' : '');
 exports.phoneCreateStmt = phoneCreateStmt = "CREATE TABLE " + ifNotExistsSql + " Phones (id INTEGER PRIMARY KEY "
-                                              + (driver == 'mysql' ? 'auto_increment' : '')
-                                              + ", numbr " + textDateType + ", person_id INTEGER, modified_by_person_id INTEGER) "
+  + (driver == 'mysql' ? 'auto_increment' : '')
+  + ", numbr " + textDateType + ", person_id INTEGER, modified_by_person_id INTEGER) "
   + (driver == 'mysql' ? 'engine=innodb' : '');
 exports.companyCreateStmt = companyCreateStmt = "CREATE TABLE " + ifNotExistsSql + " Companies (id INTEGER PRIMARY KEY "
-                                                  + (driver == 'mysql' ? 'auto_increment' : '')
-                                                  + ", name " + textDateType + ") "
+  + (driver == 'mysql' ? 'auto_increment' : '')
+  + ", name " + textDateType + ") "
   + (driver == 'mysql' ? 'engine=innodb' : '');
 exports.companyPersonCreateStmt = companyPersonCreateStmt = "CREATE TABLE " + ifNotExistsSql + " CompanyPerson ( company_id INTEGER, person_id INTEGER, PRIMARY KEY(company_id, person_id)) " + (driver == 'mysql' ? 'engine=innodb' : '');
 exports.primaryKeyTestCreateStmt = primaryKeyTestCreateStmt = "CREATE TABLE " + ifNotExistsSql + " PrimaryKeyTests (my_pk_id INTEGER PRIMARY KEY "
-                                                                + (driver == 'mysql' ? 'auto_increment' : '')
-                                                                + ", name " + textDateType + ") "
+  + (driver == 'mysql' ? 'auto_increment' : '')
+  + ", name " + textDateType + ") "
   + (driver == 'mysql' ? 'engine=innodb' : '');
 
 if (driver == "oracle") {
@@ -57,10 +57,10 @@ if (driver == "oracle") {
   exports.doNothingSql = exports.personCreateStmt;
 }
 
-exports.connect = function(persist, opts, callback) {
-  opts = opts || {};
 
-  var mycallback = function(err, connection) {
+function sync(callback) {
+
+  return function (err, connection) {
     if (err) {
       callback(err);
       return;
@@ -82,7 +82,7 @@ exports.connect = function(persist, opts, callback) {
       "DELETE FROM Companies",
       "DELETE FROM PrimaryKeyTests"
     ]);
-    connection.runSql(stmts, function(err, results) {
+    connection.runSql(stmts, function (err, results) {
       if (err) {
         callback(err);
         return;
@@ -97,37 +97,50 @@ exports.connect = function(persist, opts, callback) {
           "ALTER TABLE People ALTER COLUMN id SET DEFAULT NEXTVAL('person_seq')",
           "ALTER TABLE Companies ALTER COLUMN id SET DEFAULT NEXTVAL('company_seq')"
         ];
-        connection.runSql(stmts, function(err, results) {
+        connection.runSql(stmts, function (err, results) {
           callback(null, connection); // CREATE SEQUENCE may have already ran so throw away the errors
         });
       } else {
         callback(null, connection);
       }
     });
-  };
+  }
+}
+
+exports.createSchema = function (psersist, opts, callback) {
+  opts = opts || {};
 
   if (driver == 'sqlite3') {
-    fs.unlink('test.db', function() {
+    fs.unlink('test.db', function () {
       opts.driver = opts.driver || 'sqlite3';
       opts.filename = opts.filename || ':memory:';
-      persist.connect(opts, mycallback);
+      callback(psersist.createSchema(opts));
     });
   } else if (driver == 'postgresql') {
     opts.driver = opts.driver || 'pg';
     opts.connectionString = opts.connectionString || 'tcp://test:test@localhost/test';
-    persist.connect(opts, mycallback);
+    callback(psersist.createSchema(opts));
   } else if (driver == 'oracle') {
     opts.driver = opts.driver || 'oracle';
     opts.hostname = opts.hostname || 'localhost';
     opts.user = opts.user || 'test';
     opts.password = opts.password || 'test';
-    persist.connect(opts, mycallback);
+    callback(psersist.createSchema(opts));
   } else {
     opts.driver = opts.driver || 'mysql';
     opts.database = opts.database || 'test';
     opts.host = opts.host || 'localhost';
     opts.user = opts.user || 'root';
     opts.password = opts.password || 'root';
-    persist.connect(opts, mycallback);
+    callback(psersist.createSchema(opts));
   }
+}
+
+exports.connect = function (persist, opts, callback) {
+  exports.createSchema(persist, opts, function (schema) {
+    schema.connect(sync(function (err, connection) {
+      if (err) return callback(err);
+      return callback(null, connection, schema);
+    }));
+  });
 };

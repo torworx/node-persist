@@ -28,7 +28,8 @@ exports['Select'] = nodeunit.testCase({
 
     this.Phone.hasOne(this.Person, { name: "modifiedBy", foreignKey: "modified_by_person_id" });
 
-    testUtils.connect(persist, {}, function (err, connection) {
+    testUtils.connect(persist, self.connectOpts, function (err, connection, schema) {
+      self.schema = schema;
       if (err) {
         console.log(err);
         return;
